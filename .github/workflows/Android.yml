@@ -25,20 +25,31 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle 8.9
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Check Gradle
-        run: gradle --version
+      - name: Check project files
+        run: |
+          echo "Repository files:"
+          ls -la
+          echo "Searching settings.gradle:"
+          find . -name "settings.gradle*" -not -path "*/.gradle/*"
 
       - name: Build Debug APK
-        run: gradle --no-daemon assembleDebug
+        run: |
+          PROJECT_DIR=$(find . -name "settings.gradle.kts" -not -path "*/.gradle/*" -printf '%h\n' | head -n 1)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: settings.gradle.kts not found!"
+            exit 1
+          fi
+          cd "$PROJECT_DIR"
+          gradle --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Glue-Launcher-V0.1
-          path: app/build/outputs/apk/debug/*.apk
+          path: "**/app/build/outputs/apk/debug/*.apk"
           if-no-files-found: error
