@@ -30,35 +30,128 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Find Gradle project
-        id: project
+      - name: Generate Android project
         shell: bash
         run: |
-          FILE=$(find . -name settings.gradle.kts \
-            -not -path './.gradle/*' \
-            -print -quit)
+          mkdir -p app/src/main/java/com/glue/launcher
 
-          if [ -z "$FILE" ]; then
-            FILE=$(find . -name settings.gradle \
-              -not -path './.gradle/*' \
-              -print -quit)
-          fi
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "GlueLauncher"
+          include(":app")
+          EOF
 
-          if [ -z "$FILE" ]; then
-            echo "ERROR: settings.gradle(.kts) belum ada!"
-            echo "Buat file Gradle project terlebih dahulu."
-            exit 1
-          fi
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.7.3" apply false
+              id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+          }
+          EOF
 
-          DIR=$(dirname "$FILE")
-          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          cat > gradle.properties <<'EOF'
+          android.useAndroidX=true
+          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
+          EOF
+
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.glue.launcher"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.glue.launcher"
+                  minSdk = 26
+                  targetSdk = 35
+                  versionCode = 1
+                  versionName = "0.1"
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="Glue Launcher"
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/glue/launcher/MainActivity.kt <<'EOF'
+          package com.glue.launcher
+
+          import android.app.Activity
+          import android.os.Bundle
+          import android.graphics.Color
+          import android.widget.LinearLayout
+          import android.widget.TextView
+
+          class MainActivity : Activity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  val layout = LinearLayout(this)
+                  layout.orientation = LinearLayout.VERTICAL
+                  layout.setPadding(28, 48, 28, 28)
+                  layout.setBackgroundColor(Color.rgb(18, 20, 32))
+
+                  val title = TextView(this)
+                  title.text = "GLUE LAUNCHER"
+                  title.textSize = 28f
+                  title.setTextColor(Color.WHITE)
+
+                  val subtitle = TextView(this)
+                  subtitle.text = "Minecraft Java Launcher V0.1"
+                  subtitle.textSize = 16f
+                  subtitle.setTextColor(Color.LTGRAY)
+
+                  layout.addView(title)
+                  layout.addView(subtitle)
+                  setContentView(layout)
+              }
+          }
+          EOF
 
       - name: Build APK
-        run: gradle --no-daemon -p "${{ steps.project.outputs.dir }}" assembleDebug
+        run: gradle --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Glue-Launcher-V0.1
-          path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
